@@ -39,7 +39,7 @@ float core_power=0;
 
 int main(int argc, char * argv[])
 {
-  
+//  printf("Schedule\n");
   printf("---------------------------------------------\n");
   printf("-- USIMM: the Utah SImulated Memory Module --\n");
   printf("--              Version: 1.3               --\n");
@@ -285,9 +285,11 @@ int main(int argc, char * argv[])
 	 instruction completion times. */
       for(int c=0; c < NUM_CHANNELS; c++)
       {
+	//printf("Schedule\n");
 	schedule(c);
 	gather_stats(c);	
       }
+	//goto debug;
     }
 
     /* For each core, bring in new instructions from the trace file to
@@ -476,7 +478,7 @@ int main(int argc, char * argv[])
   for(int c=0; c<NUM_CHANNELS; c++)
 	  for(int r=0; r<NUM_RANKS ;r++)
 		  calculate_power(c,r,0,chips_per_rank);
-
+	debug:
 	printf ("\n#-------------------------------------- Power Stats ----------------------------------------------\n");
 	printf ("Note:  1. termRoth/termWoth is the power dissipated in the ODT resistors when Read/Writes terminate \n");
 	printf ("          in other ranks on the same channel\n");

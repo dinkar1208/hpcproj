@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "utlist.h"
 #include "utils.h"
-#include "stdlib.h"
+
 #include "memory_controller.h"
 #include "params.h"
 
@@ -76,7 +76,7 @@ void schedule(int channel)
 	request_t * rd_ptr = NULL;
 	request_t * wr_ptr = NULL;
 	int i, j;
-	int rank, bank, issued, issuable;
+	int rank, bank, issued;
 
 
 	// if in write drain mode, keep draining writes until the
@@ -96,7 +96,7 @@ void schedule(int channel)
 		drain_writes[channel] = 1;
 	}
 	else {
-	  if (!read_queue_length[channel] && write_queue_length[channel]>0)
+	  if (!read_queue_length[channel])
 	    drain_writes[channel] = 1;
 	}
 
@@ -110,24 +110,13 @@ void schedule(int channel)
 	if(drain_writes[channel])
 	{//if the code comes here there are instructions to drain.
 		issued = 0;
-		issuable = 0;
-		//printf("Channel  = %d, Rank = %d, Bank = %d\n\n\n\n",channel, MAX_NUM_RANKS, MAX_NUM_BANKS);
-		LL_FOREACH(write_queue_head[channel], wr_ptr)
-		{
-			if(wr_ptr->command_issuable)issuable++;
-		}
-		//printf("%d\n", issuable);
-		if(!issuable)goto debug;
-
-
-		trymorebanks:		
+		trymore:		
 		rank = sts[channel][0];
 		bank = sts[channel][1];
-		//printf("Channel  = %d, Rank = %d, Bank = %d\n",channel, rank, bank);
-
+		printf("Channel  = %d, Rank = %d, Bank = %d",channel, rank, bank);
 		LL_FOREACH(write_queue_head[channel], wr_ptr)
 		{
-		
+		goto debug;
 		/* code comes here */
 			if(wr_ptr->dram_addr.rank == rank && wr_ptr->dram_addr.bank == bank && wr_ptr->command_issuable)
 			{
@@ -144,54 +133,29 @@ void schedule(int channel)
 				}
 				issue_request_command(wr_ptr);
 				issued = 1;
-				//printf("Issued for Channel  = %d, Rank = %d, Bank = %d...\n\n",channel, rank, bank);
-
-
-			if(sts[channel][0] < (MAX_NUM_RANKS) && sts[channel][1] < (MAX_NUM_BANKS -1)){ //increase bank number safely w/o rank
-				sts[channel][1] += 1;
-			}
-			else{
-				if((sts[channel][0] == (MAX_NUM_RANKS - 1)) && ((sts[channel][1] == (MAX_NUM_BANKS - 1)))){
-					sts[channel][0] = 0;
-					sts[channel][1] = 0;
+				if(sts[channel][0] < (MAX_NUM_RANKS) && sts[channel][1] < (MAX_NUM_BANKS - 1)){ //increase bank number safely w/o rank
+					sts[channel][1] += 1;
 				}
 				else{
-					if((sts[channel][0] < (MAX_NUM_RANKS)) && ((sts[channel][1] == (MAX_NUM_BANKS -1)))){
-						sts[channel][0] += 1;
-						sts[channel][1] = 0;
-					}
-				}
-			}
-
-			
-
-			
+					sts[channel][0] = 0;
+					sts[channel][1] = 0;
+				}				
 				break;
 			}
 		}
 
 		if(!issued){
-			if(sts[channel][0] < (MAX_NUM_RANKS) && sts[channel][1] < (MAX_NUM_BANKS -1)){ //increase bank number safely w/o rank
+			if(sts[channel][0] < (MAX_NUM_RANKS) && sts[channel][1] < (MAX_NUM_BANKS - 1)){ //increase bank number safely w/o rank
 				sts[channel][1] += 1;
 			}
 			else{
-				if((sts[channel][0] == (MAX_NUM_RANKS - 1)) && ((sts[channel][1] == (MAX_NUM_BANKS - 1)))){
-					sts[channel][0] = 0;
-					sts[channel][1] = 0;
-				}
-				else{
-					if((sts[channel][0] < (MAX_NUM_RANKS)) && ((sts[channel][1] == (MAX_NUM_BANKS -1)))){
-						sts[channel][0] += 1;
-						sts[channel][1] = 0;
-					}
-				}
+				sts[channel][0] = 0;
+				sts[channel][1] = 0;
 			}
-			goto trymorebanks;
-			}
-			
+			goto trymore;
 		}
-	
-	debug:
+	}
+
 	// Draining Reads
 	// look through the queue and find the first request whose
 	// command can be issued in this cycle and issue it 
@@ -220,7 +184,7 @@ void schedule(int channel)
 			}
 		}
 	}
-
+	debug:
 	/* If a command hasn't yet been issued to this channel in this cycle, issue a precharge. */
 	if (!command_issued_current_cycle[channel]) {
 	  for (i=0; i<NUM_RANKS; i++) {
@@ -238,7 +202,6 @@ void schedule(int channel)
 	}
 
 
-	return;
 }
 
 void scheduler_stats()
