@@ -108,10 +108,10 @@ void schedule(int channel)
 
 
 	if(drain_writes[channel])
-	{//if the code comes here there are instructions in the queue
+	{//if the code comes here there are instructions to drain.
 		issued = 0;
 		issuable = 0;
-		//printf("Channel  = %d, Rank = %d, Bank = %d\n\n\n\n",channel, NUM_RANKS, NUM_BANKS);
+		//printf("Channel  = %d, Rank = %d, Bank = %d\n\n\n\n",channel, MAX_NUM_RANKS, MAX_NUM_BANKS);
 		LL_FOREACH(write_queue_head[channel], wr_ptr)
 		{
 			if(wr_ptr->command_issuable)issuable++;
@@ -128,7 +128,7 @@ void schedule(int channel)
 		LL_FOREACH(write_queue_head[channel], wr_ptr)
 		{
 		
-		/* code comes here */
+		/* code starts here */
 			if(wr_ptr->dram_addr.rank == rank && wr_ptr->dram_addr.bank == bank && wr_ptr->command_issuable)
 			{
 				/* Before issuing the command, see if this bank is now a candidate for closure (if it just did a column-rd/wr).
