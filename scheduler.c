@@ -18,7 +18,7 @@ int recent_colacc[MAX_NUM_CHANNELS][MAX_NUM_RANKS][MAX_NUM_BANKS];
 /* Keeping track of how many preemptive precharges are performed. */
 long long int num_aggr_precharge = 0;
 
-
+int sts[MAX_NUM_CHANNELS][2]; //[0] provides rank; [1] provides bank;//
 
 
 void init_scheduler_vars()
@@ -30,6 +30,11 @@ void init_scheduler_vars()
 	    for (k=0; k<MAX_NUM_BANKS; k++) {
 	      recent_colacc[i][j][k] = 0;
 	    }
+	  }
+	}
+	for (i=0; i<MAX_NUM_CHANNELS; i++) {
+	  for (j=0; j<2; j++) {
+	    sts[i][j] = 0;
 	  }
 	}
 	return;
@@ -66,18 +71,12 @@ int drain_writes[MAX_NUM_CHANNELS];
 
    Before issuing a command it is important to check if it is issuable. For the RD/WR queue resident commands, checking the "command_issuable" flag is necessary. To check if the other commands (mentioned above) can be issued, it is important to check one of the following functions: is_precharge_allowed, is_all_bank_precharge_allowed, is_powerdown_fast_allowed, is_powerdown_slow_allowed, is_powerup_allowed, is_refresh_allowed, is_autoprecharge_allowed, is_activate_allowed.
    */
-
-
-
-
-
-
-
 void schedule(int channel)
 {
 	request_t * rd_ptr = NULL;
 	request_t * wr_ptr = NULL;
 	int i, j;
+	int rank, bank, issued;
 
 
 	// if in write drain mode, keep draining writes until the
@@ -106,25 +105,16 @@ void schedule(int channel)
 	// elements (already arranged in the order of arrival), and
 	// issue the command for the first request that is ready
 	if(drain_writes[channel])
-	{
-
+	{//if the code comes here there are instructions to drain.
+		issued = 0;
+		trymore:		
+		rank = sts[channel][0];
+		bank = sts[channel][1];
 		LL_FOREACH(write_queue_head[channel], wr_ptr)
 		{
 
-/* code comes here */
-
-
-
-
-
-
-
-
-
-
-
-
-			if(wr_ptr->command_issuable)
+		/* code comes here */
+			if(wr_ptr->dram_addr.rank == rank && wr_ptr->dram_addr.bank == bank && wr_ptr->command_issuable)
 			{
 				/* Before issuing the command, see if this bank is now a candidate for closure (if it just did a column-rd/wr).
 				   If the bank just did an activate or precharge, it is not a candidate for closure. */
@@ -138,9 +128,21 @@ void schedule(int channel)
 				  recent_colacc[channel][wr_ptr->dram_addr.rank][wr_ptr->dram_addr.bank] = 0;
 				}
 				issue_request_command(wr_ptr);
+				issued = 1;
 				break;
 			}
 		}
+		if(!issued){
+			if(sts[channel][0] < (MAX_NUM_RANKS) && sts[channel][1] < (MAX_NUM_BANKS - 1)){ //increase bank number safely w/o rank
+				sts[channel][1] += 1;
+			}
+			else{
+				sts[channel][0] = 0;
+				sts[channel][1] = 0;
+			}
+			goto trymore;
+		}
+
 	}
 
 	// Draining Reads
@@ -152,12 +154,7 @@ void schedule(int channel)
 		LL_FOREACH(read_queue_head[channel],rd_ptr)
 		{
 
-/* code comes here */
-
-
-
-
-
+			/* code comes here */
 			if(rd_ptr->command_issuable)
 			{
 				/* Before issuing the command, see if this bank is now a candidate for closure (if it just did a column-rd/wr).
